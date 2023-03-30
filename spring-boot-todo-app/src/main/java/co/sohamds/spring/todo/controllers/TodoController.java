@@ -1,5 +1,6 @@
 package co.sohamds.spring.todo.controllers;
 
+import java.util.logging.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -36,6 +37,7 @@ public class TodoController {
 	static OpenTelemetry openTelemetry = OpenTelemetrySdk.builder().build();
 	private static final Tracer tracer = openTelemetry.getTracer("To-do-app-Java-Tracer");
 	Meter meter = openTelemetry.getMeter("To-do-app-Java-Meter");
+	Logger logger = Logger.getLogger(TodoController.class.getName());
 
 	// const collectorOptions={
 	// serviceName: '<Zipkin>',
@@ -56,21 +58,25 @@ public class TodoController {
 	@GetMapping("/todos")
 	public String todos(Model model) {
 		Span span = tracer.spanBuilder("getTodos").startSpan();
-		try (Scope scope = span.makeCurrent()) {
-			model.addAttribute("todos", todoRepository.findAll());
-			span.setAttribute(io.opentelemetry.semconv.trace.attributes.SemanticAttributes.HTTP_METHOD, "GET");
-			span.setAttribute(io.opentelemetry.semconv.trace.attributes.SemanticAttributes.HTTP_ROUTE, "/todos");
-		} catch (Throwable t) {
-			span.setStatus(StatusCode.ERROR, "An error occurred while processing getTodos request");
-		} finally {
-			span.end();
-		}
+
+		logger.setLevel(Level.FINE);
+		model.addAttribute("todos", todoRepository.findAll());
+		span.setAttribute("Adding a todo to the list", "/todos");
+		span.addEvent("in todos model");
+		logger.log(Level.FINE, "in the todos which accepts model as an attribute");
+		span.end();
+		span.setStatus(StatusCode.ERROR, "An error occurred while processing getTodos request");
 		model.addAttribute("todos", todoRepository.findAll());
 		return "todos";
 	}
 
 	@PostMapping("/todoNew")
 	public String add(@RequestParam String todoItem, @RequestParam String status, Model model) {
+
+		// logger
+		logger.setLevel(Level.FINE);
+		logger.log(Level.FINE,
+				"in the add method of the controller which gets item to be inserted, status, and model as an attribute");
 		// creating a span to instrument for adding a todo
 		Span span = tracer.spanBuilder("addTodo").startSpan();
 		Todo todo = new Todo(todoItem, status);
@@ -87,7 +93,10 @@ public class TodoController {
 
 	@PostMapping("/todoDelete/{id}")
 	public String delete(@PathVariable long id, Model model) {
-
+		// logger
+		logger.setLevel(Level.FINE);
+		logger.log(Level.FINE,
+				"in the delete method of the controller which gets item's id to be deleted, and model as an attribute");
 		// creating a span to instrument for deleting a todo
 		Span span = tracer.spanBuilder("deleteTodo").startSpan();
 		span.addEvent("Delete a To do");
@@ -101,6 +110,11 @@ public class TodoController {
 
 	@PostMapping("/todoUpdate/{id}")
 	public String update(@PathVariable long id, Model model) {
+
+		// logger
+		logger.setLevel(Level.FINE);
+		logger.log(Level.FINE,
+				"in the update method of the controller which gets item's id to be update, and model as an attribute");
 		// creating a span to instrument for Updating a todo
 		Span span = tracer.spanBuilder("Updating a To-do").startSpan();
 		Todo todo = todoRepository.findById(id).get();
