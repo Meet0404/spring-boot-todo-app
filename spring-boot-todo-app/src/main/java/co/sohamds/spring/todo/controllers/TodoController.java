@@ -11,6 +11,7 @@ import co.sohamds.spring.todo.domain.Todo;
 import co.sohamds.spring.todo.repository.TodoRepository;
 
 //all the imports for otel
+import io.opentelemetry.api.*;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
@@ -26,14 +27,23 @@ import io.opentelemetry.context.Scope;
 
 @Controller
 public class TodoController {
+
 	// Create a Zipkin exporter with the endpoint set to the address of the Zipkin
 	// container
-	ZipkinSpanExporter exporter = ZipkinSpanExporter.builder().setEndpoint("http://localhost:9411/zipkin/").build();
+	ZipkinSpanExporter exporter = ZipkinSpanExporter.builder().setEndpoint("http://localhost:9411/zipkin/")
+			.build();
 	// initializes the otel sdk
-	OpenTelemetry openTelemetry = OpenTelemetrySdk.builder().build();
-	Tracer tracer = openTelemetry.getTracer("To-do-app-Java-Tracer");
+	static OpenTelemetry openTelemetry = OpenTelemetrySdk.builder().build();
+	private static final Tracer tracer = openTelemetry.getTracer("To-do-app-Java-Tracer");
 	Meter meter = openTelemetry.getMeter("To-do-app-Java-Meter");
 
+	// const collectorOptions={
+	// serviceName: '<Zipkin>',
+	// url: 'http://localhost:9411/zipkin/',
+	// headers
+	// };
+
+	// const exporter=new CollectorTraceExporter(collectorOptions);
 	@Autowired
 	TodoRepository todoRepository;
 
@@ -61,35 +71,49 @@ public class TodoController {
 
 	@PostMapping("/todoNew")
 	public String add(@RequestParam String todoItem, @RequestParam String status, Model model) {
-
+		// creating a span to instrument for adding a todo
 		Span span = tracer.spanBuilder("addTodo").startSpan();
 		Todo todo = new Todo(todoItem, status);
 		todo.setTodoItem(todoItem);
 		todo.setCompleted(status);
 		todoRepository.save(todo);
 		model.addAttribute("todos", todoRepository.findAll());
-		span.setAttribute(SemanticAttributes.HTTP_METHOD, "POST");
-		span.setAttribute(SemanticAttributes.HTTP_ROUTE, "/todoNew");
+		// instrumented code
+		span.setAttribute("Adding a todo to the list", todoItem);
+		span.addEvent("Todo Added");
 		span.end();
 		return "redirect:/todos";
 	}
 
 	@PostMapping("/todoDelete/{id}")
 	public String delete(@PathVariable long id, Model model) {
+
+		// creating a span to instrument for deleting a todo
+		Span span = tracer.spanBuilder("deleteTodo").startSpan();
+		span.addEvent("Delete a To do");
+		span.setAttribute("Deleting todo with", id);
+		// instrumented code ends
 		todoRepository.deleteById(id);
 		model.addAttribute("todos", todoRepository.findAll());
+		span.end();
 		return "redirect:/todos";
 	}
 
 	@PostMapping("/todoUpdate/{id}")
 	public String update(@PathVariable long id, Model model) {
+		// creating a span to instrument for Updating a todo
+		Span span = tracer.spanBuilder("Updating a To-do").startSpan();
 		Todo todo = todoRepository.findById(id).get();
 		if ("Yes".equals(todo.getCompleted())) {
+			span.setAttribute("Todo not completed", null);
 			todo.setCompleted("No");
 		} else {
+			span.setAttribute("Todo completed", null);
 			todo.setCompleted("Yes");
 		}
 		todoRepository.save(todo);
+		span.end();
+
 		model.addAttribute("todos", todoRepository.findAll());
 		return "redirect:/todos";
 	}
